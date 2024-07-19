@@ -1,1 +1,1 @@
-Repository of Python codes used to automation processes. Codes are free and released for use.
+![python repository](https://github.com/user-attachments/assets/d02f553e-4f25-4af1-b9df-5712fb5f5d2b)
