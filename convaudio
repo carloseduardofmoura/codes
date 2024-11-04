@@ -1,18 +1,94 @@
-from pydub import AudioSegment
 import os
-os.system("clear")
+from yt_dlp import YoutubeDL
+from tkinter import Tk, Label, Entry, Button, filedialog, messagebox, Radiobutton, StringVar, ttk
 
-print("> Para correta conversão, o arquivo a ser convertido deve estar na mesma pasta do conversor!")
-print("> Para conversão MP3 escolha mp3, para WAV escolha wav!")
-print()
 
-arquivo = input("Nome do arquivo a ser importado para conversão: ")
-saida = input("Nome do arquivo convertido: ")
-formato = input("Entre com o formato para conversão: ")
+def progress_hook(d):
+    if d['status'] == 'downloading':
+        downloaded = d.get('downloaded_bytes', 0)
+        total = d.get('total_bytes', 1)
+        progress_percentage = int((downloaded / total) * 100)
+        progress_var.set(progress_percentage)
+        progress_bar.update_idletasks()
 
-if formato == "mp3":
-    sound = AudioSegment.from_file(arquivo).export(saida, format=formato)
-elif formato == "wav":
-    sound = AudioSegment.from_file(arquivo).export(saida, format=formato)
-print()
-print("Fim da conversão!")
+
+def download_video(url, output_folder, download_type):
+    ydl_opts = {
+        'format': 'bestaudio/best' if download_type == 'mp3' else 'bestvideo+bestaudio',
+        'outtmpl': os.path.join(output_folder, '%(title)s.%(ext)s'),
+        'progress_hooks': [progress_hook],  # Hook para atualizar a barra de progresso
+    }
+
+    if download_type == 'mp3':
+        ydl_opts['postprocessors'] = [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }]
+
+    try:
+        with YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            downloaded_file = os.path.join(output_folder,
+                                           f"{info['title']}.mp3" if download_type == 'mp3' else f"{info['title']}.mp4")
+            return downloaded_file
+    except Exception as e:
+        messagebox.showerror("Erro", f"Erro ao baixar o vídeo: {e}")
+        return None
+
+
+def select_output_folder():
+    folder_selected = filedialog.askdirectory()
+    output_entry.delete(0, 'end')
+    output_entry.insert(0, folder_selected)
+
+
+def start_download():
+    url = url_entry.get().strip()
+    output_folder = output_entry.get()
+    download_type = download_choice.get()
+
+    if not url or not output_folder:
+        messagebox.showwarning("Aviso", "Preencha todos os campos.")
+        return
+
+    progress_var.set(0)  # Reinicia a barra de progresso
+    downloaded_file = download_video(url, output_folder, download_type)
+    if downloaded_file:
+        messagebox.showinfo("Sucesso", f"Arquivo baixado com sucesso: {downloaded_file}")
+
+
+# Configuração da interface gráfica
+root = Tk()
+root.title("Convaudio Downloader")
+root.geometry("500x420")  # Ajuste para incluir a barra de progresso
+
+# Instruções para o usuário
+Label(root, text="Cole a URL do vídeo do YouTube:", font=("Arial", 10)).pack(pady=10)
+url_entry = Entry(root, width=60)
+url_entry.pack(pady=5)
+
+Label(root, text="Selecione a pasta de destino:", font=("Arial", 10)).pack(pady=10)
+output_entry = Entry(root, width=60)
+output_entry.pack(pady=5)
+Button(root, text="Selecionar pasta", command=select_output_folder).pack(pady=5)
+
+# Opções de download
+Label(root, text="Escolha o formato de download:", font=("Arial", 10)).pack(pady=10)
+download_choice = StringVar(value="mp3")  # Valor padrão como 'mp3'
+Radiobutton(root, text="Converter para MP3 (Apenas Áudio)", variable=download_choice, value="mp3").pack()
+Radiobutton(root, text="Baixar Vídeo Completo (MP4)", variable=download_choice, value="mp4").pack()
+
+# Barra de progresso
+progress_var = StringVar()
+progress_var.set(0)
+progress_bar = ttk.Progressbar(root, orient="horizontal", length=400, mode="determinate", variable=progress_var)
+progress_bar.pack(pady=10)
+
+# Botão de download
+Button(root, text="Iniciar Download", command=start_download, bg="green", fg="white", font=("Arial", 10)).pack(pady=20)
+
+# Crédito
+Label(root, text="Desenvolvido por Carlos Moura", font=("Arial", 8, "italic")).pack(pady=5)
+
+root.mainloop()
