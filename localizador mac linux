@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+
+import subprocess
+import re
+import platform
+import time
+
+def find_mac(ip):
+    """Consulta a tabela ARP para encontrar o endereço MAC do IP."""
+    try:
+        # Executa o comando 'ip neigh show' para obter o endereço MAC do IP
+        arp_output = subprocess.check_output(f"ip neigh show {ip}", shell=True, text=True)
+
+        # A linha geralmente tem o formato: "192.168.1.87 dev eth0 lladdr 00:14:22:01:23:45 REACHABLE"
+        match = re.search(r"lladdr\s+([0-9a-fA-F:]+)", arp_output)
+        if match:
+            return match.group(1)
+        return None  # Caso não encontre o MAC na saída
+    except subprocess.CalledProcessError:
+        return None  # Caso ocorra algum erro ao executar o comando
+
+def validate_ip(ip):
+    """Valida o formato do IP."""
+    pattern = re.compile(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
+    return pattern.match(ip) is not None
+
+def locate_mac(ip):
+    """Realiza o ping e busca o endereço MAC do IP."""
+    print("Processando...")
+
+    try:
+        # Realiza o ping
+        ping_param = "-n" if platform.system().lower() == "windows" else "-c"
+        ping_process = subprocess.Popen(["ping", ping_param, "4", ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                        text=True)
+
+        response_received = False
+        for line in ping_process.stdout:
+            print(line.strip())
+            if "TTL=" in line or "ttl=" in line:  # Detecta uma resposta bem-sucedida
+                response_received = True
+            time.sleep(0.5)
+
+        ping_process.wait()
+
+        if not response_received:
+            print(f"O IP {ip} não está respondendo ao ping.")
+            return
+
+        # Busca o MAC na tabela ARP
+        mac = find_mac(ip)
+        if mac:
+            print(f"MAC Address encontrado: {mac}")
+        else:
+            print("Endereço MAC não encontrado.")
+
+    except Exception as e:
+        print(f"Erro ao processar o IP {ip}: {e}")
+
+if __name__ == "__main__":
+    ip = input("Digite o IP: ")
+    if not ip:
+        print("Por favor, insira um endereço IP.")
+    elif not validate_ip(ip):
+        print("Endereço IP inválido. Verifique o formato.")
+    else:
+        locate_mac(ip)
