@@ -1,0 +1,113 @@
+import tkinter as tk
+from tkinter import messagebox
+import subprocess
+import threading
+import re
+import time
+import os
+
+
+def find_mac(ip):
+    # Utilizando o comando ARP do Windows para obter o MAC Address
+    try:
+        # Executa o comando arp para obter a tabela de ARP
+        arp_output = subprocess.check_output(f"arp -a {ip}", shell=True, text=True)
+
+        # Verifica se o endereço MAC foi encontrado na saída
+        if "no match" in arp_output:
+            return None
+
+        # Extrai o endereço MAC da saída do comando arp
+        for line in arp_output.splitlines():
+            if ip in line:
+                mac = line.split()[1]
+                return mac
+        return None
+
+    except subprocess.CalledProcessError:
+        return None
+
+
+def validate_ip(ip):
+    pattern = re.compile(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
+    return pattern.match(ip) is not None
+
+
+def locate_mac(ip):
+    # Desativa o botão enquanto realiza as operações
+    locate_button.config(state=tk.DISABLED, text="Processando...")
+    output_text.delete("1.0", tk.END)
+    mac_result_label.config(text="")  # Limpa o resultado anterior do MAC
+
+    try:
+        # Primeiro, realiza o ping
+        ping_process = subprocess.Popen(["ping", "-n", "4", ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                        text=True)
+
+        for line in ping_process.stdout:
+            output_text.insert(tk.END, line)
+            output_text.see(tk.END)
+            output_text.update()
+            time.sleep(0.5)
+
+        ping_process.wait()
+
+        # Exibe mensagem de progresso e inicia a busca pelo MAC
+        mac_result_label.config(text="Buscando MAC Address...")
+
+        # Após o ping, realiza a busca pelo endereço MAC
+        mac = find_mac(ip)
+        if mac:
+            mac_result_label.config(text=f"MAC Address encontrado: {mac}")
+        else:
+            mac_result_label.config(text="Endereço MAC não encontrado.")
+            messagebox.showerror("Erro", f"Não foi possível encontrar o endereço MAC para o IP {ip}")
+
+    except Exception as e:
+        messagebox.showerror("Erro", f"Erro ao processar o IP {ip}: {e}")
+
+    finally:
+        # Reativa o botão após as operações
+        locate_button.config(state=tk.NORMAL, text="Localizar MAC")
+
+
+def on_locate_button_click():
+    ip = ip_entry.get()
+    if not ip:
+        messagebox.showwarning("Entrada Inválida", "Por favor, insira um endereço IP.")
+        return
+
+    if not validate_ip(ip):
+        messagebox.showwarning("Entrada Inválida", "Endereço IP inválido. Verifique o formato.")
+        return
+
+    # Executa o processo em uma nova thread para evitar congelamento da interface
+    threading.Thread(target=locate_mac, args=(ip,)).start()
+
+
+# Configurando a interface gráfica
+root = tk.Tk()
+root.title("Ping e Encontrar Endereço MAC")
+root.geometry("500x450")
+
+dev_label = tk.Label(root, text="Desenvolvido por Carlos Moura", font=("Helvetica", 10, "italic"))
+dev_label.pack(pady=10)
+
+tk.Label(root, text="Digite o IP:", font=("Helvetica", 12)).pack(pady=10)
+
+ip_entry = tk.Entry(root, font=("Helvetica", 12), width=30)
+ip_entry.pack(pady=10)
+
+# Substitui o botão de ping pelo botão de localizar MAC
+locate_button = tk.Button(root, text="Localizar MAC", font=("Helvetica", 12), width=20, command=on_locate_button_click)
+locate_button.pack(pady=10)
+
+# Área de texto para exibir o resultado do ping em tempo real
+output_text = tk.Text(root, height=10, width=50, font=("Helvetica", 10))
+output_text.pack(pady=10)
+
+# Label para exibir o resultado do MAC address
+mac_result_label = tk.Label(root, text="", font=("Helvetica", 12), fg="blue")
+mac_result_label.pack(pady=10)
+
+root.mainloop()
